@@ -16,7 +16,7 @@ An interactive deep dive into PyTorch's `torch.compile` system, tracing the jour
 ## Setup
 
 ```bash
-pip install torch          # PyTorch 2.x
+pip install torch==2.10    # PyTorch 2.10
 pip install tlparse        # parsing structured compilation logs
 pip install pydot          # parsing graph DOT files
 pip install fastapi uvicorn  # optional: compiler debug server
