@@ -32,11 +32,7 @@ Reference:
 
 import shutil
 import torch
-from linductor.compiler_backend import (
-    LinductorBackend,
-    LinductorCompilationConfig,
-    PassConfig,
-)
+from debug_backend import DebugBackend, DebugCompilationConfig, PassConfig
 
 TRACE_DIR = "./torch_trace"
 shutil.rmtree(TRACE_DIR, ignore_errors=True)
@@ -47,13 +43,13 @@ def noop_pass(gm: torch.fx.GraphModule) -> None:
     gm.recompile()
 
 
-linductor_config = LinductorCompilationConfig(
+config = DebugCompilationConfig(
     inductor_config={},
     pass_config=PassConfig(graph_pass=noop_pass),
     torch_trace_enabled=True,
     torch_trace_dir=TRACE_DIR,
 )
-linductor_backend = LinductorBackend(compilation_config=linductor_config)
+backend = DebugBackend(compilation_config=config)
 
 
 # =========================================================================
@@ -89,7 +85,7 @@ def buggy_model(x):
 # Run it
 # =========================================================================
 
-compiled = torch.compile(buggy_model, backend=linductor_backend)
+compiled = torch.compile(buggy_model, backend=backend)
 
 print("=" * 60)
 print("GRAPH BREAKS QUIZ")

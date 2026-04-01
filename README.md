@@ -6,27 +6,20 @@ An interactive deep dive into PyTorch's `torch.compile` system, tracing the jour
 
 | # | File | Topic |
 |---|------|-------|
-| 1 | `01_compile_basics.py` | Compilation pipeline, Linductor backend, trace generation |
+| 1 | `01_compile_basics.py` | Compilation pipeline, debug backend, trace generation |
 | 2a | `02a_static_shapes.py` | Static shape guards, recompilation on shape change |
 | 2b | `02b_dynamic_shapes.py` | `dynamic=True`, `mark_dynamic` — avoiding recompilation |
-| 2c | `02c_dynamic_trace.py` | Linductor trace with dynamic shapes, symbolic dim propagation |
+| 2c | `02c_dynamic_trace.py` | Trace with dynamic shapes, symbolic dim propagation |
 | 3 | `03_graph_breaks.py` | Graph breaks quiz — spot the breaks in one function |
 | 3 (solution) | `03s_graph_breaks_solution.py` | Fixed version — zero graph breaks, single graph |
 
 ## Setup
 
-Activate the project's Python 3.12 environment (built by Gradle):
-
 ```bash
-mint clone aip-pytorch-training-bootcamp # if you have done this, skip this step
-mint build # if you have done this, skip this step
-cd torchtrain
-source activate
-pip install numpy==1.26.4 # pin down numpy
-pip install linductor==0.1.34+torch210cpu # custom backend with advanced
-pip install tlparse # parsing structured compilation log
-pip install pydot # parsing graph
-cd ../tutorials/torch_compile
+pip install torch          # PyTorch 2.x
+pip install tlparse        # parsing structured compilation logs
+pip install pydot          # parsing graph DOT files
+pip install fastapi uvicorn  # optional: compiler debug server
 ```
 
 ## What is torch.compile?
@@ -56,9 +49,19 @@ output = compiled_model(input)  # first call traces + compiles; subsequent calls
 
 Let's run `01_compile_basics.py` in debug mode and understand what `torch.compile` does under the hood. The compilation pipeline has two major phases.
 
+### The Debug Backend
+
+`debug_backend.py` is a lightweight custom backend included in this repo that wraps TorchInductor with extra instrumentation:
+
+1. **Structured trace export** — redirects `TORCH_TRACE` logs to a directory so every compilation stage (Dynamo bytecode analysis, AOTAutograd graph capture, Inductor IR lowering, kernel codegen) is recorded in one place.
+2. **Custom graph pass hooks** — a `PassConfig` lets you inject graph-level transformations (in-place passes or `fx.Transformer` subclasses) that run before Inductor's own optimisation pipeline. When tracing is enabled, DOT files are generated showing before/after state of each pass.
+3. **Inductor config validation** — the config dict is checked against `torch._inductor`'s known options at init time, catching typos early.
+
+Under the hood, `DebugBackend.__call__` applies your custom passes, then delegates to `torch._inductor.compile_fx.compile_fx` with the validated config — so the actual code generation (Triton/C++/OpenMP) is still handled by upstream Inductor.
+
 ### Running in debug mode
 
-`01_compile_basics.py` uses the Linductor backend with `torch_trace_enabled=True`, which writes structured compiler traces to `./torch_trace/`. Run it with verbose Dynamo logs:
+`01_compile_basics.py` uses the debug backend with `torch_trace_enabled=True`, which writes structured compiler traces to `./torch_trace/`. Run it with verbose Dynamo logs:
 
 ```bash
 bash run_debug.sh 01
@@ -66,7 +69,7 @@ bash run_debug.sh 01
 
 This produces two complementary outputs:
 - **Console logs** — verbose Dynamo/guard/recompile output (from `TORCH_LOGS`)
-- **`./torch_trace/`** — structured trace files from Linductor (Dynamo graphs, AOTAutograd, Inductor IR, custom pass DOT files)
+- **`./torch_trace/`** — structured trace files (Dynamo graphs, AOTAutograd, Inductor IR, custom pass DOT files)
 
 ### Parsing and browsing the trace logs
 
@@ -79,7 +82,7 @@ tlparse ./torch_trace/dedicated_log* -o ./torch_trace_parsed --overwrite
 Open `./torch_trace_parsed/index.html` in a browser to explore:
 - FX graphs at each compilation stage
 - Guard details and recompilation reasons
-- Custom pass before/after DOT visualizations (when using Linductor PassConfig)
+- Custom pass before/after DOT visualizations
 
 For a richer experience (directory browsing, inline DOT-to-SVG rendering), start the debug server:
 
@@ -99,7 +102,7 @@ See `compiler_debug_server.py` in this directory for the server source.
 | Console (`TORCH_LOGS`) | `+dynamo` | Bytecode tracing, FX graph construction |
 | Console (`TORCH_LOGS`) | `+guards` | Guard installation and evaluation |
 | Console (`TORCH_LOGS`) | `+aot` | AOTAutograd joint/forward/backward graphs |
-| Linductor trace | `./torch_trace/` | Raw structured trace (all stages) |
+| Debug backend trace | `./torch_trace/` | Raw structured trace (all stages) |
 | tlparse output | `./torch_trace_parsed/` | Browsable HTML with graphs, guards, IR |
 | `TORCH_COMPILE_DEBUG=1` | `torch_compile_debug/run_*/torchinductor/*/output_code.py` | Generated Triton/C++ kernel code |
 | `TORCH_COMPILE_DEBUG=1` | `ir_pre_fusion.txt` / `ir_post_fusion.txt` | Inductor IR before/after kernel fusion |
@@ -219,14 +222,14 @@ Demonstrates two approaches to avoid recompilation:
 
 Important: call `mark_dynamic` **before** passing the tensor to the compiled function.
 
-### 2c: Tracing dynamic shapes with Linductor
+### 2c: Tracing dynamic shapes
 
 ```bash
 bash run_debug.sh 02c
 tlparse ./torch_trace/dedicated_log* -o ./torch_trace_parsed --overwrite
 ```
 
-Captures a full Linductor trace with `dynamic=True` so you can see symbolic dimensions (`s0`, `s1`, ...) propagate through the FX graph, AOTAutograd, and Inductor IR.
+Captures a full trace with `dynamic=True` so you can see symbolic dimensions (`s0`, `s1`, ...) propagate through the FX graph, AOTAutograd, and Inductor IR.
 
 ### What to look for in the trace
 

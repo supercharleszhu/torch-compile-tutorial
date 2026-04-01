@@ -1,9 +1,9 @@
 """
-torch.compile 101 — Lesson 2c: Tracing Dynamic Shapes with Linductor
-=====================================================================
+torch.compile 101 — Lesson 2c: Tracing Dynamic Shapes
+=====================================================
 
-Captures a full Linductor trace with dynamic shapes enabled so you can
-see how symbolic dimensions propagate through the compilation pipeline.
+Captures a full trace with dynamic shapes enabled so you can see how
+symbolic dimensions propagate through the compilation pipeline.
 
 Run:  bash run_debug.sh 02c
 Then: tlparse ./torch_trace/dedicated_log* -o ./torch_trace_parsed --overwrite
@@ -11,11 +11,7 @@ Then: tlparse ./torch_trace/dedicated_log* -o ./torch_trace_parsed --overwrite
 
 import shutil
 import torch
-from linductor.compiler_backend import (
-    LinductorBackend,
-    LinductorCompilationConfig,
-    PassConfig,
-)
+from debug_backend import DebugBackend, DebugCompilationConfig, PassConfig
 
 TRACE_DIR = "./torch_trace"
 shutil.rmtree(TRACE_DIR, ignore_errors=True)
@@ -28,22 +24,22 @@ def noop_pass(gm: torch.fx.GraphModule) -> None:
     gm.recompile()
 
 
-linductor_config = LinductorCompilationConfig(
+config = DebugCompilationConfig(
     inductor_config={},
     pass_config=PassConfig(graph_pass=noop_pass),
     torch_trace_enabled=True,
     torch_trace_dir=TRACE_DIR,
 )
-linductor_backend = LinductorBackend(compilation_config=linductor_config)
+backend = DebugBackend(compilation_config=config)
 
 
 def compute(x):
     return (x * 2 + 1).sum()
 
 
-compiled = torch.compile(compute, backend=linductor_backend, dynamic=True)
+compiled = torch.compile(compute, backend=backend, dynamic=True)
 
-print("--- Linductor trace with dynamic shapes ---")
+print("--- Trace with dynamic shapes ---")
 compiled(torch.randn(10))
 compiled(torch.randn(50))
 compiled(torch.randn(200))
