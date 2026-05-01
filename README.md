@@ -12,6 +12,7 @@ An interactive deep dive into PyTorch's `torch.compile` system, tracing the jour
 | 2c | `02c_dynamic_trace.py` | Trace with dynamic shapes, symbolic dim propagation |
 | 3 | `03_graph_breaks.py` | Graph breaks quiz — spot the breaks in one function |
 | 3 (solution) | `03s_graph_breaks_solution.py` | Fixed version — zero graph breaks, single graph |
+| 4 | `04_inductor_codegen.py` (+ `04_inductor_codegen.md`) | Inductor codegen worked example — `(a+b)*c.relu()).sum(-1)` walked through every Inductor stage. Companion to the [Deep Dive II blog post](https://supercharleszhu.github.io/posts/2026-04-30-00/). |
 
 ## Setup
 
